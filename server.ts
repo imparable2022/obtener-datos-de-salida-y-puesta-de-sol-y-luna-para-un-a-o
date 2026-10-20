@@ -1,8 +1,8 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import * as cheerio from "cheerio";
 import path from "path";
 import Database from 'better-sqlite3';
+import { mapUsnoOneDayResponse } from './usno.js';
 
 // Initialize DB safely
 const dbPath = path.join(process.cwd(), 'solar_moon_data.db');
@@ -27,129 +27,33 @@ db.exec(`
   )
 `);
 
-// Constants for the scraping target
-const BASE_URL = "https://aa.usno.navy.mil/calculated/rstt/oneday";
+// USNO's documented GeoJSON endpoint for daily Sun and Moon data.
+const USNO_API_URL = "https://aa.usno.navy.mil/api/rstt/oneday";
 const LAT = "-29.15";
 const LON = "-59.65";
-const LABEL = "Reconquista, Santa Fe, Argentina";
-const TZ = "3";
-const TZ_SIGN = "-1";
+const TZ = "-3";
 
-// Helper to delay requests
+// Keep the request rate low while retaining one official API request per day.
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Helper to parse time string "HH:MM" to minutes for calculation
-function timeToMinutes(timeStr: string): number | null {
-  if (!timeStr || !timeStr.includes(':')) return null;
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-// Helper to format minutes back to "HH:mm" or "Xh Ym"
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h}h ${m}m`;
-}
-
-async function scrapeDay(date: Date) {
-  const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
-  const url = `${BASE_URL}?date=${dateStr}&lat=${LAT}&lon=${LON}&label=${encodeURIComponent(LABEL)}&tz=${TZ}&tz_sign=${TZ_SIGN}&tz_label=false&dst=false&submit=Obtener+datos`;
+async function fetchDayFromUsnoApi(date: Date) {
+  const dateStr = date.toISOString().split('T')[0];
+  const parameters = new URLSearchParams({
+    date: dateStr,
+    coords: `${LAT},${LON}`,
+    tz: TZ,
+    dst: 'false',
+  });
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-    const html = await response.text();
-    const $ = cheerio.load(html);
-
-    const data: any = {
-      date: dateStr,
-      begin_civil_twilight: '',
-      sunrise: '',
-      sun_transit: '',
-      sunset: '',
-      end_civil_twilight: '',
-      moonrise: '',
-      moonset: '',
-      moon_illumination: '',
-      moon_phase: '',
-      next_moon_phase: ''
-    };
-
-    // Parse Table Data
-    let currentSection = '';
-    $('table tr').each((_, row) => {
-      const th = $(row).find('th');
-      if (th.length > 0) {
-        const headerText = th.text().trim();
-        if (headerText.includes('Sun')) currentSection = 'Sun';
-        if (headerText.includes('Moon')) currentSection = 'Moon';
-      }
-
-      const cells = $(row).find('td');
-      if (cells.length >= 2) {
-        const label = $(cells[0]).text().trim();
-        const value = $(cells[1]).text().trim();
-
-        if (currentSection === 'Sun') {
-          if (label.includes('Begin Civil Twilight')) data.begin_civil_twilight = value;
-          if (label.includes('Rise')) data.sunrise = value;
-          if (label.includes('Upper Transit')) data.sun_transit = value;
-          if (label.includes('Set')) data.sunset = value;
-          if (label.includes('End Civil Twilight')) data.end_civil_twilight = value;
-        } else if (currentSection === 'Moon') {
-          if (label.includes('Rise')) data.moonrise = value;
-          if (label.includes('Set')) data.moonset = value;
-        }
-      }
-    });
-
-    // Parse Paragraph Data
-    const textContent = $('div').text(); // Get all text to search regex
-    
-    // Phase and Illumination
-    const phaseRegex = /Phase of the moon on .*?: (.*?) with (\d+)%/;
-    const phaseMatch = textContent.match(phaseRegex);
-    if (phaseMatch) {
-      data.moon_phase = phaseMatch[1].trim();
-      data.moon_illumination = phaseMatch[2] + '%';
+    const response = await fetch(`${USNO_API_URL}?${parameters}`);
+    if (!response.ok) {
+      throw new Error(`USNO API returned ${response.status} ${response.statusText}`);
     }
 
-    // Next Primary Phase
-    const nextPhaseRegex = /Closest Primary Moon Phase: (.*?)(\n|$)/;
-    const nextPhaseMatch = textContent.match(nextPhaseRegex);
-    if (nextPhaseMatch) {
-      data.next_moon_phase = nextPhaseMatch[1].trim();
-    }
-
-    // Calculations
-    if (data.sunrise && data.sunset) {
-      const riseMin = timeToMinutes(data.sunrise);
-      const setMin = timeToMinutes(data.sunset);
-      if (riseMin !== null && setMin !== null) {
-        let diff = setMin - riseMin;
-        if (diff < 0) diff += 24 * 60; // Handle crossing midnight
-        data.day_length = formatDuration(diff);
-      }
-    }
-
-    if (data.begin_civil_twilight && data.end_civil_twilight) {
-      const startMin = timeToMinutes(data.begin_civil_twilight);
-      const endMin = timeToMinutes(data.end_civil_twilight);
-      if (startMin !== null && endMin !== null) {
-        let diff = endMin - startMin;
-        if (diff < 0) diff += 24 * 60;
-        data.visible_light_length = formatDuration(diff);
-      }
-    }
-
-    return data;
-
+    return mapUsnoOneDayResponse(dateStr, await response.json());
   } catch (error) {
-    console.error(`Error scraping ${dateStr}:`, error);
+    console.error(`Error fetching USNO API data for ${dateStr}:`, error);
     return null;
   }
 }
@@ -248,12 +152,12 @@ async function startServer() {
 
       if (count.count >= totalDays) {
         console.log(`[SERVER] Data for ${targetYear} already complete.`);
-        return res.json({ message: `Data for ${targetYear} already scraped`, complete: true });
+        return res.json({ message: `Data for ${targetYear} is already collected`, complete: true });
       }
 
-      res.json({ message: `Scraping started for ${targetYear}`, complete: false });
+      res.json({ message: `USNO API collection started for ${targetYear}`, complete: false });
 
-      console.log(`[SERVER] Starting background scraping for ${targetYear}...`);
+      console.log(`[SERVER] Starting background USNO API collection for ${targetYear}...`);
       
       const startDate = new Date(`${targetYear}-01-01`);
       const endDate = new Date(`${targetYear}-12-31`);
@@ -277,8 +181,8 @@ async function startServer() {
             return;
           }
 
-          console.log(`[SERVER] Scraping ${dateStr}...`);
-          const data = await scrapeDay(date);
+          console.log(`[SERVER] Fetching USNO API data for ${dateStr}...`);
+          const data = await fetchDayFromUsnoApi(date);
           
           if (data) {
             try {
@@ -297,13 +201,13 @@ async function startServer() {
               console.error(`[SERVER] DB Error saving ${dateStr}:`, dbError);
             }
           } else {
-            console.error(`[SERVER] Failed to scrape data for ${dateStr} (scrapeDay returned null)`);
+            console.error(`[SERVER] Failed to fetch USNO API data for ${dateStr}`);
           }
         }));
 
         await delay(1000);
       }
-      console.log(`[SERVER] Scraping finished for ${targetYear}`);
+      console.log(`[SERVER] USNO API collection finished for ${targetYear}`);
     } catch (error) {
       console.error("[SERVER ERROR] /api/scrape:", error);
       // Response already sent

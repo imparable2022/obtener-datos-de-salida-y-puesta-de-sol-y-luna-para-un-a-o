@@ -22,9 +22,9 @@ El proyecto no realiza por sí mismo los cálculos astronómicos de salida, pues
 
 ## Fuente de los datos
 
-La aplicación consulta la herramienta de datos diarios del U.S. Naval Observatory:
+La aplicación consulta la API oficial de datos diarios del U.S. Naval Observatory:
 
-https://aa.usno.navy.mil/calculated/rstt/oneday
+https://aa.usno.navy.mil/api/rstt/oneday
 
 Para este proyecto se utilizan los siguientes datos de ubicación:
 
@@ -34,9 +34,9 @@ Para este proyecto se utilizan los siguientes datos de ubicación:
 - Zona horaria configurada: **UTC-3**
 - Horario de verano: desactivado
 
-El servidor consulta la página del USNO para cada fecha, extrae los datos disponibles y los guarda en SQLite.
+El servidor realiza una consulta a la API por cada fecha del año: **365 consultas para un año común o 366 para un año bisiesto**. Cada respuesta GeoJSON se transforma en un registro y se guarda en SQLite.
 
-Por ese motivo, si el USNO cambia la estructura de la página que devuelve los resultados, el mecanismo de extracción puede necesitar una actualización.
+Al consumir la API oficial en lugar de extraer tablas HTML, la recopilación no depende de la estructura visual de la página del USNO.
 
 ## Demostración rápida
 
@@ -71,7 +71,7 @@ La interfaz está pensada para mostrar esta información como una tabla navegabl
 
 - Node.js
 - Express
-- Cheerio, para extraer los datos de las respuestas HTML
+- API oficial GeoJSON del U.S. Naval Observatory, para obtener los datos diarios
 - better-sqlite3, para almacenar los registros localmente
 
 ### Exportación
@@ -161,7 +161,7 @@ La aplicación tampoco está preparada actualmente para exponerse como servicio 
 ## Posibles mejoras
 
 - Permitir elegir otras ciudades o introducir coordenadas.
-- Añadir pruebas automatizadas del proceso de extracción.
+- Añadir pruebas de integración contra la API oficial del USNO.
 - Continuar las pruebas de accesibilidad con lectores de pantalla.
 - Mejorar el manejo de errores si la fuente externa no responde.
 - Validar de forma más estricta los datos antes de guardarlos.
