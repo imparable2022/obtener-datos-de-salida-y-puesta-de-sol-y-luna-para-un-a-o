@@ -1,5 +1,5 @@
 {
-  "name": "obtener datos de salida y puesta de sol y luna de un año para reconquista, santa fe, argentina",
-  "description": "",
+  "name": "Datos solares y lunares de Reconquista",
+  "description": "Aplicación web experimental para recopilar, organizar, consultar y exportar datos diarios del Sol y la Luna para Reconquista, Santa Fe, usando información del U.S. Naval Observatory.",
   "requestFramePermissions": []
 }
