@@ -441,7 +441,12 @@ export default function App() {
             </button>
 
             {!isScrapingComplete && (
-              <div className="flex items-center gap-3 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg border border-blue-100">
+              <div
+                className="flex items-center gap-3 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg border border-blue-100"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              >
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span className="text-sm font-medium">
                   Recopilando datos: {scrapingStatus?.count || 0} / {scrapingStatus?.total || 365}
@@ -468,8 +473,9 @@ export default function App() {
             <Calendar className="w-5 h-5 text-slate-400" />
             
             <div className="flex items-center gap-2">
-              <span className="font-medium text-slate-700">Año:</span>
-              <select 
+              <label htmlFor="year-select" className="font-medium text-slate-700">Año:</label>
+              <select
+                id="year-select"
                 value={selectedYear} 
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
                 className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -481,8 +487,9 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="font-medium text-slate-700">Mes:</span>
-              <select 
+              <label htmlFor="month-select" className="font-medium text-slate-700">Mes:</label>
+              <select
+                id="month-select"
                 value={selectedMonth} 
                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
                 className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -537,6 +544,7 @@ export default function App() {
             <div className="flex items-center gap-2 mr-2">
                 <button
                     onClick={handleExportMonth}
+                    aria-label={`Exportar ${months[selectedMonth - 1]} de ${selectedYear} a Excel`}
                     className="flex items-center gap-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-2 rounded-lg font-medium transition-colors"
                     title="Exportar mes actual a Excel"
                 >
@@ -545,6 +553,7 @@ export default function App() {
                 </button>
                 <button
                     onClick={handleExportYear}
+                    aria-label={`Exportar el año ${selectedYear} completo a Excel`}
                     className="flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 px-3 py-2 rounded-lg font-medium transition-colors shadow-sm"
                     title={`Exportar todo el año ${selectedYear} a Excel`}
                 >
@@ -556,6 +565,8 @@ export default function App() {
             <div className="relative">
                 <button
                 onClick={() => setIsCustomizeModalOpen(!isCustomizeModalOpen)}
+                aria-expanded={isCustomizeModalOpen}
+                aria-controls="column-customizer"
                 className={`flex items-center gap-2 font-medium transition-colors px-3 py-2 rounded-lg ${
                     isCustomizeModalOpen 
                     ? 'bg-indigo-50 text-indigo-600' 
@@ -572,10 +583,20 @@ export default function App() {
                     className="fixed inset-0 z-10" 
                     onClick={() => setIsCustomizeModalOpen(false)} 
                     />
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-20 overflow-hidden ring-1 ring-black/5">
+                    <div
+                      id="column-customizer"
+                      role="region"
+                      aria-labelledby="column-customizer-title"
+                      className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-20 overflow-hidden ring-1 ring-black/5"
+                    >
                     <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
-                        <h3 className="font-semibold text-slate-900 text-sm">Mostrar Columnas</h3>
-                        <button onClick={() => setIsCustomizeModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                        <h3 id="column-customizer-title" className="font-semibold text-slate-900 text-sm">Mostrar Columnas</h3>
+                        <button
+                          type="button"
+                          aria-label="Cerrar personalización de la tabla"
+                          onClick={() => setIsCustomizeModalOpen(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
                         <X className="w-4 h-4" />
                         </button>
                     </div>
@@ -606,15 +627,18 @@ export default function App() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
+              <caption className="sr-only">
+                Datos solares y lunares de {months[selectedMonth - 1]} de {selectedYear} para Reconquista, Santa Fe, Argentina
+              </caption>
               <thead className="bg-slate-50 text-slate-500 font-medium uppercase tracking-wider text-xs border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4">Día</th>
+                  <th scope="col" className="px-6 py-4">Día</th>
                   {COLUMN_CONFIG.map(col => visibleColumns[col.key] && (
-                    <th key={col.key} className={`px-6 py-4 ${col.className || ''}`}>
+                    <th scope="col" key={col.key} className={`px-6 py-4 ${col.className || ''}`}>
                       {col.label}
                     </th>
                   ))}
-                  {isAdminMode && <th className="px-6 py-4 text-right">Acciones</th>}
+                  {isAdminMode && <th scope="col" className="px-6 py-4 text-right">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -634,14 +658,14 @@ export default function App() {
                 ) : (
                   data.map((row) => (
                     <tr key={row.date} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">
+                      <th scope="row" className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">
                         {parseInt(row.date.split('-')[2], 10)}
-                      </td>
+                      </th>
                       {COLUMN_CONFIG.map(col => visibleColumns[col.key] && (
                         <td key={col.key} className="px-6 py-4 text-slate-600">
                           {col.key === 'moon_illumination' ? (
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-1 bg-slate-200 rounded-full overflow-hidden">
+                              <div className="w-8 h-1 bg-slate-200 rounded-full overflow-hidden" aria-hidden="true">
                                 <div 
                                   className="h-full bg-indigo-500" 
                                   style={{ width: row.moon_illumination }}
@@ -651,7 +675,7 @@ export default function App() {
                             </div>
                           ) : col.key === 'moon_phase' ? (
                             <div className="flex items-center" title={row.moon_phase}>
-                              <span className="text-lg mr-2">{getMoonIcon(row.moon_phase)}</span>
+                              <span className="text-lg mr-2" aria-hidden="true">{getMoonIcon(row.moon_phase)}</span>
                               <span className="text-xs max-w-[150px] truncate">{translatePhaseName(row.moon_phase)}</span>
                             </div>
                           ) : col.key === 'next_moon_phase' ? (
@@ -674,6 +698,7 @@ export default function App() {
                                     onClick={() => openEditModal(row)}
                                     className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                                     title="Editar"
+                                    aria-label={`Editar registro del ${row.date}`}
                                 >
                                     <Edit className="w-4 h-4" />
                                 </button>
@@ -681,6 +706,7 @@ export default function App() {
                                     onClick={() => handleDeleteRecord(row.date)}
                                     className="p-1 text-red-600 hover:bg-red-50 rounded"
                                     title="Eliminar"
+                                    aria-label={`Eliminar registro del ${row.date}`}
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -699,20 +725,31 @@ export default function App() {
       {/* Edit Modal */}
       {isEditModalOpen && editingRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div
+              className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="record-dialog-title"
+            >
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                    <h3 className="text-xl font-bold text-slate-900">
+                    <h3 id="record-dialog-title" className="text-xl font-bold text-slate-900">
                         {data.find(d => d.date === editingRecord.date) ? 'Editar Registro' : 'Nuevo Registro'}
                     </h3>
-                    <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                        <X className="w-6 h-6" />
+                    <button
+                      type="button"
+                      aria-label="Cerrar formulario de registro"
+                      onClick={() => setIsEditModalOpen(false)}
+                      className="text-slate-400 hover:text-slate-600"
+                    >
+                        <X className="w-6 h-6" aria-hidden="true" />
                     </button>
                 </div>
                 
                 <form onSubmit={(e) => { e.preventDefault(); handleSaveRecord(editingRecord); }} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Fecha (YYYY-MM-DD)</label>
-                        <input 
+                        <label htmlFor="record-date" className="block text-sm font-medium text-slate-700 mb-1">Fecha (YYYY-MM-DD)</label>
+                        <input
+                            id="record-date"
                             type="date" 
                             required
                             value={editingRecord.date}
@@ -724,8 +761,9 @@ export default function App() {
 
                     {COLUMN_CONFIG.map(col => (
                         <div key={col.key}>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">{col.label}</label>
-                            <input 
+                            <label htmlFor={`record-${col.key}`} className="block text-sm font-medium text-slate-700 mb-1">{col.label}</label>
+                            <input
+                                id={`record-${col.key}`}
                                 type="text"
                                 value={editingRecord[col.key as keyof DailyData] || ''}
                                 onChange={e => setEditingRecord({...editingRecord, [col.key]: e.target.value})}
